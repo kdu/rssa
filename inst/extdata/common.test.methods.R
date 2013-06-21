@@ -71,13 +71,15 @@ make.test.data <- function(what = c("reconstruct", "rforecast", "vforecast"),
                            svd.method = c("eigen", "propack", "svd", "nutrlan"),
                            neig = NULL,
                            tolerance = 1e-7,
-                           svd.methods = c("eigen", "propack", "svd", "nutrlan")) {
+                           svd.methods = c("eigen", "propack", "svd", "nutrlan"),
+                           do.fcompress = FALSE,
+                           fcompress.args = list()) {
   what <- sapply(what, match.arg, choices = eval(formals()$what));
   kind <- match.arg(kind);
   svd.method <- match.arg(svd.method);
   svd.methods <- sapply(svd.methods, match.arg, choices = eval(formals()$svd.methods));
 
-  out <- list(series = series);
+  out <- list();
 
   if ("reconstruct" %in% what) {
     out$reconstruction <- compute.reconstructions(series, Ls, groups = groups,
@@ -99,6 +101,12 @@ make.test.data <- function(what = c("reconstruct", "rforecast", "vforecast"),
                                        kind = kind, forecast.method = "vector",
                                        svd.method = svd.method, neig = neig);
   }
+
+  if (do.fcompress) {
+    out <- do.call(fcompress, c(list(x = out), fcompress.args));
+  }
+
+  out$series <- series;
 
   attr(out, "name") <- name;
   attr(out, "what") <- what;
@@ -203,4 +211,71 @@ is_multisets_approx_equal <- function(mset1, mset2, tol = .Machine$double.eps^0.
   }
 
   return(length(mset2) == 0);
+}
+
+fcompress <- function(x, m, ind, delta = 0.05, compress.attributes = TRUE) {
+  if (is.list(x)) {
+    for (i in seq_along(x)) {
+      x[[i]] <- Recall(x[[i]], m = m, ind = ind, delta = delta)
+    }
+
+    if (compress.attributes && (length(setdiff(names(attributes(x)), c("names", "dim"))) > 0)) {
+      attributes(x) <- Recall(attributes(x), m = m, ind = ind, delta = delta)
+    }
+
+    return(x)
+  }
+
+  if (!is.numeric(x)) {
+    return(x)
+  }
+
+  if (is.matrix(x)) {
+    N <- dim(x)
+    newdim <- sapply(dim(x), nextn)
+    x <- cbind(rbind(x, matrix(0, nrow = newdim[1] - nrow(x), ncol = ncol(x))), matrix(0, nrow = newdim[1], ncol = newdim[2] - ncol(x)))
+
+    X <- as.vector(t(mvfft(t(mvfft(x)))))
+    d <- 2L
+  } else {
+    N <- length(x)
+    length(x) <- nextn(length(x))
+    x[is.na(x)] <- 0
+
+    X <- fft(x)
+    d <- 1L
+  }
+  X <- X[seq_len(length(X) / 2)]
+
+  if (missing(m)) {
+    E <- sort(abs(X)^2, decreasing = TRUE)
+    m <- c(which(1 - cumsum(E)/sum(E) <= delta), length(E))[1]
+  }
+
+  if (missing(ind)) {
+    ind <- order(abs(X))[seq_len(min(m, length(X)))]
+  }
+
+  res <- list(d = d, N = as.integer(N), ind = as.integer(ind), Find = X[ind])
+
+  class(res) <- "fcompress"
+  res
+}
+
+all.equal.fcompress <- function(target, current, ...) {
+  if ((target$d == 1) != is.null(dim(current)))
+    return("Different dimensions")
+
+  N <- dim(current)
+  if (is.null(N)) {
+    N <- length(current)
+  }
+
+  if (any(target$N != N)) {
+    return("Different lengths")
+  }
+
+  current <- fcompress(current, ind = target$ind)
+
+  all.equal(target$Find, current$Find, ...)
 }
