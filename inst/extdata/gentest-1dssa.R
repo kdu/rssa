@@ -42,7 +42,9 @@ fr1k.td <- make.test.data(series = fr1k,
                           len = 100,
                           kind = "1d-ssa",
                           svd.method = "e",
-                          neig = 5);
+                          neig = 5,
+                          do.fcompress = TRUE,
+                          fcompress.args = list(m = 36));
 test.test.data(test.data = fr1k.td);
 
 #fr50k.td <- make.test.data(series = fr50k,
@@ -54,8 +56,10 @@ test.test.data(test.data = fr1k.td);
 #                           kind = "1d-ssa",
 #                           svd.method = "p",
 #                           neig = 5,
-#                           tolerance = 1e-6,
-#                           svd.methods = c("p", "n"));
+#                           tolerance = 5e-6,
+#                           svd.methods = c("p", "n"),
+#                           do.fcompress = TRUE,
+#                           fcompress.args = list(m = 36));
 #test.test.data(test.data = fr50k.td);
 
 set.seed(1);
@@ -81,7 +85,9 @@ fr1k.nz.td <- make.test.data(series = fr1k + rnorm(fr1k),
                              len = 100,
                              kind = "1d-ssa",
                              svd.method = "e",
-                             neig = 15);
+                             neig = 15,
+                             do.fcompress = TRUE,
+                             fcompress.args = list(m = 36));
 test.test.data(test.data = fr1k.nz.td);
 
 #set.seed(1);
@@ -95,8 +101,10 @@ test.test.data(test.data = fr1k.nz.td);
 #                              kind = "1d-ssa",
 #                              svd.method = "p",
 #                              neig = 15,
-#                              tolerance = 1e-6,
-#                              svd.methods = c("p", "n"));
+#                              tolerance = 5e-6,
+#                              svd.methods = c("p", "n"),
+#                              do.fcompress = TRUE,
+#                              fcompress.args = list(m = 36));
 #test.test.data(test.data = fr50k.nz.td);
 
 #save(co2.td, fr50.td, fr1k.td, fr50k.td, fr50.nz.td, fr1k.nz.td, fr50k.nz.td,
