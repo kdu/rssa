@@ -10,7 +10,7 @@ set.seed(1);
 field <- matrix(rnorm(prod(N)), N[1], N[2]);
 
 ss <- ssa(field, kind = "2d-ssa", L = L, neig = 20);
-expected.reconstruction <- reconstruct(ss, groups = groups);
+expected.reconstruction <- fcompress(reconstruct(ss, groups = groups), m = 36);
 
 save(L, groups, field, expected.reconstruction,
      file = system.file("extdata", "2dssa.testdata.rda", package = "Rssa"),
