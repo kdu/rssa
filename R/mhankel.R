@@ -26,11 +26,10 @@
 }
 
 .hmat.striped <- function(x, fft.plan) {
-  # FIXME: think about NA's in the end
   N <- x$length; L <- x$window; K <- N - L + 1
 
   h <- lapply(1:length(N),
-              function(idx) new.hmat(x$F[, idx], L = L,
+              function(idx) new.hmat(x$F[seq_len(N[idx]), idx], L = L,
                                      fft.plan = fft.plan[[idx]]))
   b <- c(0, cumsum(K))
   matmul <- function(v) rowSums(sapply(1:length(h),
@@ -167,11 +166,15 @@ calc.v.mssa<- function(x, idx, env = .GlobalEnv, ...) {
 
   # FIXME: All these apply's are really ugly. Switch to C version...
   unlist(lapply(1:length(K),
-                function(idx) .hankelize.one.1d.ssa(x, U, V[(b[idx]+1):b[idx+1]], fft.plan[[idx]])))
+                function(idx) {
+                  res <- .hankelize.one.1d.ssa(x, U, V[(b[idx]+1):b[idx+1]], fft.plan[[idx]])
+                  length(res) <- max(N)
+                  res
+                }))
 }
 
 .slength.mssa <- function(x)
-  sum(x$length)
+  max(x$length) * length(x$length)
 
 .get.or.create.cfft.plan <- function(x) {
   .get.or.create(x, "fft.plan", fft.plan.1d(x$length))
