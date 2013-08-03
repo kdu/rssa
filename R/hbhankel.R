@@ -51,12 +51,11 @@ thbhmatmul.old <- function(C, v) {
   Re((mult/(prod(dim(C$Cblock))))[C$Lx:(C$Lx+C$Kx-1),C$Ly:(C$Ly+C$Ky-1)])
 }
 
-new.hbhmat <- function(F,
-                       L = (N + 1) %/% 2) {
+new.hbhmat <- function(F, L = (N + 1) %/% 2, umask = NULL, vmask = NULL, weights = NULL) {
   N <- dim(F)
   storage.mode(F) <- "double"
   storage.mode(L) <- "integer"
-  h <- .Call("initialize_hbhmat", F, L[1], L[2])
+  h <- .Call("initialize_hbhmat", F, L[1], L[2], umask, vmask, weights)
 }
 
 hbhcols <- function(h) {
