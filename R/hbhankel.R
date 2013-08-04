@@ -55,6 +55,15 @@ new.hbhmat <- function(F, L = (N + 1) %/% 2, umask = NULL, vmask = NULL, weights
   N <- dim(F)
   storage.mode(F) <- "double"
   storage.mode(L) <- "integer"
+  if (!is.null(umask)) {
+    storage.mode(umask) <- "logical"
+  }
+  if (!is.null(vmask)) {
+    storage.mode(vmask) <- "logical"
+  }
+  if (!is.null(weights)) {
+    storage.mode(weights) <- "integer"
+  }
   h <- .Call("initialize_hbhmat", F, L[1], L[2], umask, vmask, weights)
 }
 

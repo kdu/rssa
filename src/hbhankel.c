@@ -35,8 +35,7 @@
 
 typedef struct {
   R_len_t num;
-  R_len_t *is;
-  R_len_t *js; 
+  R_len_t *ind; /* Indices in an Nx x Ny array */
 } area2d_indices;
 
 typedef struct {
@@ -50,18 +49,18 @@ typedef struct {
   struct {R_len_t x; R_len_t y;} length;
   area2d_indices *row_ind;
   area2d_indices *col_ind;
-  double *weights;
+  int *weights;
 } hbhankel_matrix;
 
 static unsigned hbhankel_nrow(const void *matrix) {
   const hbhankel_matrix *h = matrix;
-  return (h->row_ind != NULL ? h->row_ind->num : h->window.x * h->window.y);
+  return h->row_ind != NULL ? h->row_ind->num : h->window.x * h->window.y;
 }
 
 static unsigned hbhankel_ncol(const void *matrix) {
   const hbhankel_matrix *h = matrix;
-  return (h->col_ind != NULL ? h->col_ind->num : 
-          (h->length.x - h->window.x + 1)*(h->length.y - h->window.y + 1));
+  return h->col_ind != NULL ? h->col_ind->num : 
+         (h->length.x - h->window.x + 1) * (h->length.y - h->window.y + 1);
 }
 
 #if HAVE_FFTW3_H
@@ -141,7 +140,7 @@ static void hbhankel_matmul(double* out,
         circ[i + j*Nx] = v[Kx*Ky - i - j*Kx - 1];
   } else {
     for (i = 0; i < h->col_ind->num; ++i) {
-      circ[(Kx-1-h->col_ind->is[i]) + (Ky-1-h->col_ind->js[i])*Nx] = v[i];
+      circ[(Kx-1) + (Ky-1)*Nx - h->col_ind->ind[i]] = v[i];
     }
   }
 
@@ -162,7 +161,7 @@ static void hbhankel_matmul(double* out,
         out[i + j*Lx] = circ[i + j*Nx] / (Nx*Ny);
   } else {
     for (i = 0; i < h->row_ind->num; ++i) { 
-      out[i] = circ[h->row_ind->is[i] + h->row_ind->js[i]*Nx] / (Nx * Ny);
+      out[i] = circ[h->row_ind->ind[i]] / (Nx * Ny);
     } 
   }
 
@@ -200,7 +199,7 @@ static void hbhankel_tmatmul(double* out,
         circ[(i + Kx - 1) + (j + Ky - 1)*Nx] = v[Lx*Ly - i - j*Lx - 1];
   } else {
     for (i = 0; i < h->row_ind->num; ++i) { 
-      circ[(Nx-1-h->row_ind->is[i]) + (Ny-1-h->row_ind->js[i])*Nx] = v[i];
+      circ[Nx*Ny-1-h->row_ind->ind[i]] = v[i];
     }
   }
 
@@ -219,11 +218,10 @@ static void hbhankel_tmatmul(double* out,
   if (h->col_ind == NULL) {
     for (j = 0; j < Ky; ++j)
       for (i = 0; i < Kx; ++i)
-        out[i + j*Kx] = circ[(i + Lx - 1) + (j + Ly - 1)*Nx] / (Nx*Ny);
+        out[i + j * Kx] = circ[(i + Lx - 1) + (j + Ly - 1)*Nx] / (Nx * Ny);
   } else {
     for (i = 0; i < h->col_ind->num; ++i) {
-      out[i] =  circ[(h->col_ind->is[i]+Lx-1) + (h->col_ind->js[i]+Ly-1)*Nx] / 
-                (Nx * Ny);
+      out[i] =  circ[h->col_ind->ind[i] + (Lx-1) + (Ly-1)*Nx] / (Nx * Ny);
     }
   }
 
@@ -257,7 +255,7 @@ static R_INLINE void hbhankelize_fft(double *F,
         iU[i + j*Nx] = U[i + j*Lx];
   } else {
     for (i = 0; i < h->row_ind->num; ++i) {
-      iU[h->row_ind->is[i] + (h->row_ind->js[i])*Nx] = U[i];
+      iU[h->row_ind->ind[i]] = U[i];
     }
   }     
 
@@ -268,7 +266,7 @@ static R_INLINE void hbhankelize_fft(double *F,
         iV[i + j*Nx] = V[i + j*Kx];
   } else {
     for (i = 0; i < h->col_ind->num; ++i) {
-      iV[h->col_ind->is[i] + (h->col_ind->js[i])*Nx] = V[i];
+      iV[h->col_ind->ind[i]] = V[i];
     }
   }
 
@@ -341,7 +339,7 @@ static R_INLINE void hbhankelize_fft(double *F,
 }
 #endif
 
-static area2d_indices *alloc_area2d( SEXP mask ) {
+static area2d_indices *alloc_area2d( SEXP mask, int Nx ) {
   if (mask == R_NilValue) {
     return NULL;
   }
@@ -356,15 +354,13 @@ static area2d_indices *alloc_area2d( SEXP mask ) {
   for (ind = 0; ind < max_ind; ++ind) {
     area->num += maskValues[ind];
   }
-  area->is = Calloc(area->num, R_len_t);
-  area->js = Calloc(area->num, R_len_t);
+  area->ind = Calloc(area->num, R_len_t);
   
   /* Fill in the arrays of indices (not optimal) */
   R_len_t k; 
   for (ind = 0, k = 0; ind < max_ind; ++ind) {
-    if (maskValues[ind] != 0) { 
-      area->is[k] = ind % dimMask[0];        
-      area->js[k] = ind / dimMask[0];        
+    if (maskValues[ind]) {
+      area->ind[k] = ind % dimMask[0] + (ind / dimMask[0]) * Nx;
       ++k;
     }
   }
@@ -376,17 +372,16 @@ static void free_area2d( area2d_indices *area ) {
   if (area == NULL) {
     return;
   }
-  Free(area->is);
-  Free(area->js);
+  Free(area->ind);
   Free(area);
 }
 
-static double *alloc_weights( SEXP weights ) {
+static int *alloc_weights( SEXP weights ) {
   if (weights == R_NilValue) {
     return NULL;
   }
-  double *wcopy = Calloc(length(weights), double), *wsource = REAL(weights);
-  memcpy(wcopy, wsource, sizeof(double) * length(weights));
+  int *wcopy = Calloc(length(weights), int), *wsource = INTEGER(weights);
+  memcpy(wcopy, wsource, sizeof(int) * length(weights));
   return wcopy;
 }
 
@@ -442,8 +437,8 @@ SEXP initialize_hbhmat(SEXP F, SEXP windowx, SEXP windowy,
   h = Calloc(1, hbhankel_matrix);
   initialize_circulant(h, REAL(F), Nx, Ny, Lx, Ly);
   /* TODO: add a check for correct window sizes */
-  h->row_ind = alloc_area2d(umask);
-  h->col_ind = alloc_area2d(vmask);
+  h->row_ind = alloc_area2d(umask, Nx);
+  h->col_ind = alloc_area2d(vmask, Nx);
   h->weights = alloc_weights(weights);
   e->matrix = h;
 
