@@ -51,7 +51,8 @@ thbhmatmul.old <- function(C, v) {
   Re((mult/(prod(dim(C$Cblock))))[C$Lx:(C$Lx+C$Kx-1),C$Ly:(C$Ly+C$Ky-1)])
 }
 
-new.hbhmat <- function(F, L = (N + 1) %/% 2, umask = NULL, vmask = NULL, weights = NULL) {
+new.hbhmat <- function(F, L = (N + 1) %/% 2,
+                       umask = NULL, vmask = NULL, weights = NULL) {
   N <- dim(F)
   storage.mode(F) <- "double"
   storage.mode(L) <- "integer"
@@ -87,7 +88,8 @@ hbhmatmul <- function(hmat, v, transposed = FALSE) {
 
 .get.or.create.hbhmat <- function(x) {
   .get.or.create(x, "hmat",
-                 new.hbhmat(x$F, L = x$window))
+                 new.hbhmat(x$F, L = x$window, umask = x$umask, vmask = x$vmask,
+                            weights = x$weights))
 }
 
 as.matrix.hbhmat <- function(x) {

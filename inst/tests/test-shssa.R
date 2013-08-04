@@ -16,7 +16,8 @@ test_that("simple 2d-ssa test", {
   Frec <- outer(c(1,3,9,27), c(1, 2, 4, 8, 16, 32));
  
   # Test 2D-SSA
-  h <- new.hbhmat(F, L = c(2,3));
+  s <-  ssa(F, kind="2d-ssa", force.decompose=FALSE);
+  h <- .get.or.create.hbhmat(s);
   expect_equal(round(hbhmatmul(h, vtest, TRUE)), ht_mul_v, 
                label = "tmatmul, 2D-SSA");
   expect_equal(round(hbhmatmul(h, utest)), h_mul_u, label = "matmul, 2D-SSA");
@@ -37,7 +38,8 @@ test_that("simple 2d-ssa test", {
   expect_equal(as.vector(Frec), round(as.vector(Frec_res)), label = "hankelize, SH-SSA");
 
   # Test 2D-SH-SSA (hbhmat with call to 2D-SSA C routine)
-  h3 <- new.hbhmat(F, L = c(2,3), umask = s2$umask, vmask = s2$vmask, weights = s2$weights);
+  s3 <-  ssa(F, kind="2d-ssa",umask=matrix(TRUE,2,3), force.decompose=FALSE);
+  h3 <- .get.or.create.hbhmat(s3);
   expect_equal(round(hbhmatmul(h3, vtest, TRUE)), ht_mul_v, 
                label = "tmatmul, 2D-SSA");
   expect_equal(round(hbhmatmul(h3, utest)), h_mul_u, label = "matmul, 2D-SH-SSA");
@@ -57,7 +59,9 @@ test_that("Shaped 2D-SSA test", {
   fmask[dim(F)[1],2] <- FALSE;
   
   # Test simple matrix multiplication
-  umask <- matrix(c(FALSE,TRUE, TRUE, TRUE, TRUE, FALSE, TRUE, FALSE, FALSE, FALSE,FALSE, TRUE),3,4);
+  umask <- matrix(c(FALSE,TRUE, TRUE, TRUE, 
+                    TRUE, FALSE, TRUE, FALSE, 
+                    FALSE, FALSE, FALSE, TRUE),3,4);
   
   utest <- 1:6;
   vtest <- 1:52;
@@ -65,10 +69,13 @@ test_that("Shaped 2D-SSA test", {
   # Test R-SH-SSA
   s2 <- ssa(F, kind="shaped2d-ssa",mask=fmask,umask=umask, force.decompose=FALSE);
   h2 <- .sh2hbhmat(s2);
-  h3 <- new.hbhmat(F, L = dim(umask), umask = s2$umask, vmask = s2$vmask, weights = s2$weights);
+  s3 <- ssa(F, kind="2d-ssa",mask=fmask,umask=umask, force.decompose=FALSE);
+  h3 <- .get.or.create.hbhmat(s3);
  
-  expect_equal(ematmul(h2, utest,TRUE), hbhmatmul(h3, utest, TRUE), label = "tmatmul, SH-SSA <-> 2D-SH-SSA", tolerance=1e-5);
-  expect_equal(ematmul(h2, vtest), hbhmatmul(h3, vtest), label = "matmul, SH-SSA <-> 2D-SH-SSA", tolerance=1e-5);
+  expect_equal(ematmul(h2, utest,TRUE), hbhmatmul(h3, utest, TRUE), 
+               label = "tmatmul, SH-SSA <-> 2D-SH-SSA", tolerance=1e-5);
+  expect_equal(ematmul(h2, vtest), hbhmatmul(h3, vtest), 
+               label = "matmul, SH-SSA <-> 2D-SH-SSA", tolerance=1e-5);
 });
 
 

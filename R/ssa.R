@@ -80,13 +80,43 @@ ssa <- function(x,
 
     N <- dim(x);
 
+    if (is.null(mask)) {
+      mask <- !is.na(x);
+    } else {
+      mask <- mask & !is.na(x);
+    }
+
+    umask <- .fiface.eval(substitute(umask),
+                          envir = parent.frame(),
+                          circle = circle.mask)
+    if (is.null(umask)) {
+      umask <- matrix(TRUE, L[1], L[2]);
+    } else {
+      L <- dim(umask);
+    }
+
     if (is.null(neig))
       neig <- min(50, prod(L), prod(N - L + 1))
 
     if (identical(svd.method, "auto"))
       svd.method <- "nutrlan"
 
-    umask <- vmask <- weights <- NULL
+    vmask <- factor.mask(mask, umask)
+    if (all(umask)) {
+      umask <- NULL;
+    }
+    if (all(vmask)) {
+      vmask <- NULL;
+    }
+    if (!(is.null(umask) & is.null(vmask))) {
+      weights <- field.weights(umask, vmask)
+      ommited <- sum(mask & (weights == 0))
+      if (ommited > 0) {
+        warning(sprintf("Some field elements haven't been covered by shaped window. %d elements will be ommited", ommited))
+      }
+    } else {
+      weights <- NULL;
+    }
   } else if (identical(kind, "shaped2d-ssa")) {
     # Coerce input to matrix if necessary
     if (!is.matrix(x))
