@@ -58,9 +58,12 @@ new.hbhmat <- function(F, L = (N + 1) %/% 2,
   storage.mode(L) <- "integer"
   if (!is.null(umask)) {
     storage.mode(umask) <- "logical"
+    L <- dim(umask)
   }
+  K <- as.integer(N - L + 1);
   if (!is.null(vmask)) {
     storage.mode(vmask) <- "logical"
+    K <- dim(vmask)
   }
   if (!is.null(weights)) {
     mask <- weights > 0
@@ -70,7 +73,8 @@ new.hbhmat <- function(F, L = (N + 1) %/% 2,
                           .hweights.default(N[2], L[2]))
   }
   storage.mode(weights) <- "integer"
-  h <- .Call("initialize_hbhmat", F, L[1], L[2], umask, vmask, weights)
+  h <- .Call("initialize_hbhmat", F, L[1], L[2], K[1], K[2], 
+             umask, vmask, weights)
 }
 
 hbhcols <- function(h) {

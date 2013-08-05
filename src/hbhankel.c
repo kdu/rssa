@@ -45,8 +45,9 @@ typedef struct {
   fftw_plan c2r_plan;
 #else
 #endif
-  struct {R_len_t x; R_len_t y;} window;
-  struct {R_len_t x; R_len_t y;} length;
+  struct {R_len_t x; R_len_t y;} L;
+  struct {R_len_t x; R_len_t y;} K;
+  struct {R_len_t x; R_len_t y;} N;
   area2d_indices *row_ind;
   area2d_indices *col_ind;
   int *weights;
@@ -54,13 +55,12 @@ typedef struct {
 
 static unsigned hbhankel_nrow(const void *matrix) {
   const hbhankel_matrix *h = matrix;
-  return h->row_ind != NULL ? h->row_ind->num : h->window.x * h->window.y;
+  return h->row_ind != NULL ? h->row_ind->num : h->L.x * h->L.y;
 }
 
 static unsigned hbhankel_ncol(const void *matrix) {
   const hbhankel_matrix *h = matrix;
-  return h->col_ind != NULL ? h->col_ind->num : 
-         (h->length.x - h->window.x + 1) * (h->length.y - h->window.y + 1);
+  return h->col_ind != NULL ? h->col_ind->num : h->K.x * h->K.y;
 }
 
 #if HAVE_FFTW3_H
@@ -73,8 +73,9 @@ static void free_circulant(hbhankel_matrix *h) {
 static void initialize_circulant(hbhankel_matrix *h,
                                  const double *F,
                                  R_len_t Nx, R_len_t Ny,
-                                 R_len_t Lx, R_len_t Ly) {
-  R_len_t Kx = Nx - Lx + 1, Ky = Ny - Ly + 1, i, j;
+                                 R_len_t Lx, R_len_t Ly,
+                                 R_len_t Kx, R_len_t Ky) {
+  R_len_t i, j;
   fftw_complex *ocirc;
   fftw_plan p1, p2;
   double *circ;
@@ -90,8 +91,6 @@ static void initialize_circulant(hbhankel_matrix *h,
   p2 = fftw_plan_dft_c2r_2d(Ny, Nx, ocirc, circ, FFTW_ESTIMATE);
 
   /* Fill input buffer */
-  /* TF <- cbind(F[,Ky:Ny],F[,1:(Ky-1)]);
-     TF <- rbind(TF[Kx:Nx,],TF[1:(Kx-1),]); */
   for (j = 0; j < Ny; ++j)
     for (i = 0; i < Nx; ++i)
       /* This is pretty ad-hoc solution and needs to be fixed in the future */
@@ -106,15 +105,16 @@ static void initialize_circulant(hbhankel_matrix *h,
   h->circ_freq = ocirc;
   h->r2c_plan = p1;
   h->c2r_plan = p2;
-  h->window.x = Lx; h->window.y = Ly;
-  h->length.x = Nx; h->length.y = Ny;
+  h->L.x = Lx; h->L.y = Ly;
+  h->N.x = Nx; h->N.y = Ny;
+  h->K.x = Kx; h->K.y = Ky;
 }
 
 
 static void compute_convolution( const hbhankel_matrix *h,
                                  double *circ,
                                  fftw_complex *ocirc ) {
-  R_len_t Nx = h->length.x, Ny = h->length.y, i;
+  R_len_t Nx = h->N.x, Ny = h->N.y, i;
 
   /* Compute the FFT of the reversed vector v */
   fftw_execute_dft_r2c(h->r2c_plan, circ, ocirc);
@@ -132,9 +132,9 @@ static void hbhankel_matmul(double* out,
                             const double* v,
                             const void* matrix) {
   const hbhankel_matrix *h = matrix;
-  R_len_t Nx = h->length.x, Ny = h->length.y;
-  R_len_t Lx = h->window.x, Ly = h->window.y;
-  R_len_t Kx = Nx - Lx + 1, Ky = Ny - Ly + 1, i, j;
+  R_len_t Nx = h->N.x, Ny = h->N.y;
+  R_len_t Lx = h->L.x, Ly = h->L.y;
+  R_len_t Kx = h->K.x, Ky = h->K.y, i, j;
   double *circ;
   fftw_complex *ocirc;
 
@@ -175,9 +175,9 @@ static void hbhankel_tmatmul(double* out,
                              const double* v,
                              const void* matrix) {
   const hbhankel_matrix *h = matrix;
-  R_len_t Nx = h->length.x, Ny = h->length.y;
-  R_len_t Lx = h->window.x, Ly = h->window.y;
-  R_len_t Kx = Nx - Lx + 1, Ky = Ny - Ly + 1, i, j;
+  R_len_t Nx = h->N.x, Ny = h->N.y;
+  R_len_t Lx = h->L.x, Ly = h->L.y;
+  R_len_t Kx = h->K.x, Ky = h->K.y, i, j;
   double *circ;
   fftw_complex *ocirc;
 
@@ -217,11 +217,9 @@ static void hbhankel_tmatmul(double* out,
 static R_INLINE void hbhankelize_fft(double *F,
                                      const double *U, const double *V,
                                      const hbhankel_matrix* h) {
-  R_len_t Nx = h->length.x, Ny = h->length.y;
-  R_len_t Lx = h->window.x, Ly = h->window.y;
-  R_len_t Kx = Nx - Lx + 1, Ky = Ny - Ly + 1;
-  R_len_t i, j;
-  R_len_t wx, dwx, wy, dwy;
+  R_len_t Nx = h->N.x, Ny = h->N.y;
+  R_len_t Lx = h->L.x, Ly = h->L.y;
+  R_len_t Kx = h->K.x, Ky = h->K.y, i, j;
 
   double *iU, *iV;
   fftw_complex *cU, *cV;
@@ -385,8 +383,9 @@ static void hbhmat_finalizer(SEXP ptr) {
 }
 
 SEXP initialize_hbhmat(SEXP F, SEXP windowx, SEXP windowy, 
+                       SEXP windowKx, SEXP windowKy, 
                        SEXP umask, SEXP vmask, SEXP weights) {
-  R_len_t Nx, Ny, Lx, Ly;
+  R_len_t Nx, Ny, Lx, Ly, Kx, Ky;
   hbhankel_matrix *h;
   ext_matrix *e;
   SEXP hbhmat;
@@ -394,6 +393,7 @@ SEXP initialize_hbhmat(SEXP F, SEXP windowx, SEXP windowy,
   int *dimF = INTEGER(getAttrib(F, R_DimSymbol));
   Nx = dimF[0]; Ny = dimF[1];
   Lx = INTEGER(windowx)[0]; Ly = INTEGER(windowy)[0];
+  Kx = INTEGER(windowKx)[0]; Ky = INTEGER(windowKy)[0];
 
   /* Allocate memory */
   e = Calloc(1, ext_matrix);
@@ -405,7 +405,7 @@ SEXP initialize_hbhmat(SEXP F, SEXP windowx, SEXP windowy,
 
   /* Build toeplitz circulants for hankel matrix */
   h = Calloc(1, hbhankel_matrix);
-  initialize_circulant(h, REAL(F), Nx, Ny, Lx, Ly);
+  initialize_circulant(h, REAL(F), Nx, Ny, Lx, Ly, Kx, Ky);
   /* TODO: add a check for correct window sizes */
   h->row_ind = alloc_area2d(umask, Nx);
   h->col_ind = alloc_area2d(vmask, Nx);
@@ -545,7 +545,7 @@ SEXP hbhankelize_one_fft(SEXP U, SEXP V, SEXP hmat) {
     h = e->matrix;
 
     /* Allocate buffer for output */
-    PROTECT(F = allocVector(REALSXP, h->length.x * h->length.y));
+    PROTECT(F = allocVector(REALSXP, h->N.x * h->N.y));
     rF = REAL(F);
 
     /* Perform the actual hankelization */
