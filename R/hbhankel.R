@@ -64,6 +64,8 @@ new.hbhmat <- function(F, L = (N + 1) %/% 2,
   }
   if (!is.null(weights)) {
     storage.mode(weights) <- "integer"
+    mask <- weights > 0
+    F[!mask] <- mean(F[mask]) # Improve FFT stability & remove NAs
   }
   h <- .Call("initialize_hbhmat", F, L[1], L[2], umask, vmask, weights)
 }
@@ -216,7 +218,12 @@ calc.v.2d.ssa <- function(x, idx, ...) {
 .hankelize.one.2d.ssa <- function(x, U, V) {
   h <- .get.or.create.hbhmat(x)
   storage.mode(U) <- storage.mode(V) <- "double"
-  .Call("hbhankelize_one_fft", U, V, h)
+  F <- .Call("hbhankelize_one_fft", U, V, h)
+  if (.exists.non.null(x, "weights")) {
+    F[.get(x,"weights") == 0] <- NA 
+  }
+  
+  F
 }
 
 #mes <- function(Nx = 200, Ny = 90, Lx = 100, Ly = 50, n = 50) {

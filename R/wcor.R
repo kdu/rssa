@@ -47,7 +47,7 @@ wcor.default <- function(x, L = (N + 1) %/% 2, ..., weights = NULL) {
   cor
 }
 
-wcor.2d.ssa <- wcor.toeplitz.ssa <- wcor.1d.ssa <- function(x, groups, ..., cache = TRUE) {
+ wcor.toeplitz.ssa <- wcor.1d.ssa <- function(x, groups, ..., cache = TRUE) {
   N <- prod(x$length)
   if (missing(groups))
     groups <- as.list(1:nlambda(x))
@@ -61,7 +61,7 @@ wcor.2d.ssa <- wcor.toeplitz.ssa <- wcor.1d.ssa <- function(x, groups, ..., cach
   wcor.default(mx, weights = .hweights(x))
 }
 
-wcor.shaped2d.ssa <- function(x, groups, ..., cache = TRUE) {
+wcor.shaped2d.ssa <- wcor.2d.ssa <- function(x, groups, ..., cache = TRUE) {
   N <- prod(x$length)
   if (missing(groups))
     groups <- as.list(1:nlambda(x))
@@ -75,8 +75,10 @@ wcor.shaped2d.ssa <- function(x, groups, ..., cache = TRUE) {
   w <- .hweights(x)
 
   # Omit uncovered elements
-  mx <- mx[as.vector(w > 0),, drop = FALSE]
-  w <- as.vector(w[w > 0])
+  if (.exists.non.null(x, "weights")) {
+    mx <- mx[as.vector(w > 0),, drop = FALSE]
+    w <- as.vector(w[w > 0])
+  }  
 
   # Finally, compute w-correlations and return
   wcor.default(mx, weights = w)
@@ -143,7 +145,7 @@ wnorm.default <- function(x, L = (N + 1) %/% 2, ...) {
   sqrt(sum(w * x^2))
 }
 
-wnorm.1d.ssa <- wnorm.toeplitz.ssa <- wnorm.2d.ssa <- function(x, ...) {
+wnorm.1d.ssa <- wnorm.toeplitz.ssa <- function(x, ...) {
   # Compute weights
   w <- .hweights(x)
 
@@ -151,16 +153,18 @@ wnorm.1d.ssa <- wnorm.toeplitz.ssa <- wnorm.2d.ssa <- function(x, ...) {
   sqrt(sum(w * as.vector(x$F)^2))
 }
 
-wnorm.shaped2d.ssa <- function(x, ...) {
+wnorm.shaped2d.ssa <- wnorm.2d.ssa <- function(x, ...) {
   # Get F
   F <- .get(x, "F")
 
   # Compute weights
   w <- .hweights(x)
 
-  # Omit uncovered elements
-  F <- as.vector(F[w > 0])
-  w <- as.vector(w[w > 0])
+  if (.exists.non.null(x, "weights")) {
+    # Omit uncovered elements
+    F <- as.vector(F[w > 0])
+    w <- as.vector(w[w > 0])
+  }
 
   # Compute wnorm
   sqrt(sum(w * F^2))
