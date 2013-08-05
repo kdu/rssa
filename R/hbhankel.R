@@ -63,10 +63,13 @@ new.hbhmat <- function(F, L = (N + 1) %/% 2,
     storage.mode(vmask) <- "logical"
   }
   if (!is.null(weights)) {
-    storage.mode(weights) <- "integer"
     mask <- weights > 0
     F[!mask] <- mean(F[mask]) # Improve FFT stability & remove NAs
+  } else {
+    weights <- tcrossprod(.hweights.default(N[1], L[1]),
+                          .hweights.default(N[2], L[2]))
   }
+  storage.mode(weights) <- "integer"
   h <- .Call("initialize_hbhmat", F, L[1], L[2], umask, vmask, weights)
 }
 

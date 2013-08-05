@@ -110,6 +110,24 @@ static void initialize_circulant(hbhankel_matrix *h,
   h->length.x = Nx; h->length.y = Ny;
 }
 
+
+static void compute_convolution( const hbhankel_matrix *h,
+                                 double *circ,
+                                 fftw_complex *ocirc ) {
+  R_len_t Nx = h->length.x, Ny = h->length.y, i;
+
+  /* Compute the FFT of the reversed vector v */
+  fftw_execute_dft_r2c(h->r2c_plan, circ, ocirc);
+
+  /* Dot-multiply with pre-computed FFT of toeplitz circulant */
+  for (i = 0; i < Ny * (Nx/2 + 1); ++i)
+    ocirc[i] = ocirc[i] * h->circ_freq[i];
+
+  /* Compute the reverse transform to obtain result */
+  fftw_execute_dft_c2r(h->c2r_plan, ocirc, circ);
+
+}
+
 static void hbhankel_matmul(double* out,
                             const double* v,
                             const void* matrix) {
@@ -124,14 +142,6 @@ static void hbhankel_matmul(double* out,
   circ = (double*) fftw_malloc(Nx * Ny * sizeof(double));
   ocirc = (fftw_complex*) fftw_malloc(Ny*(Nx/2 + 1) * sizeof(fftw_complex));
 
-  /*
-  revv <- matrix(c(rev(v), rep(0, C$Kx*(C$Ly-1))), C$Kx, ncol(C$Cblock));
-  revv <- rbind(revv, matrix(0, (C$Lx-1), ncol(revv)));
-
-  mult <- fft(C$Cblock * fft(revv), inverse = TRUE);
-
-  Re((mult/(prod(dim(C$Cblock))))[1:C$Lx,1:C$Ly]);*/
-
   /* Fill the arrays */
   memset(circ, 0, Nx * Ny * sizeof(double));
   if (h->col_ind == NULL) {
@@ -144,15 +154,7 @@ static void hbhankel_matmul(double* out,
     }
   }
 
-  /* Compute the FFT of the reversed vector v */
-  fftw_execute_dft_r2c(h->r2c_plan, circ, ocirc);
-
-  /* Dot-multiply with pre-computed FFT of toeplitz circulant */
-  for (i = 0; i < Ny * (Nx/2 + 1); ++i)
-    ocirc[i] = ocirc[i] * h->circ_freq[i];
-
-  /* Compute the reverse transform to obtain result */
-  fftw_execute_dft_c2r(h->c2r_plan, ocirc, circ);
+  compute_convolution(h, circ, ocirc);
 
   /* Cleanup and return */
   if (h->row_ind == NULL) {
@@ -183,14 +185,6 @@ static void hbhankel_tmatmul(double* out,
   circ = (double*) fftw_malloc(Nx * Ny * sizeof(double));
   ocirc = (fftw_complex*) fftw_malloc(Ny*(Nx/2 + 1) * sizeof(fftw_complex));
 
-  /*
-  revv <- matrix(c(rep(0, C$Lx*(C$Ky-1)), rev(v)), C$Lx, ncol(C$Cblock));
-  revv <- rbind(matrix(0, (C$Kx-1), ncol(revv)), revv);
-
-  mult <- fft(C$Cblock * fft(revv), inverse = TRUE);
-
-  Re((mult/(prod(dim(C$Cblock))))[C$Lx:(C$Lx+C$Kx-1),C$Ly:(C$Ly+C$Ky-1)]); */
-
   /* Fill the arrays */
   memset(circ, 0, Nx * Ny * sizeof(double));
   if (h->row_ind == NULL) {
@@ -203,16 +197,7 @@ static void hbhankel_tmatmul(double* out,
     }
   }
 
-
-  /* Compute the FFT of the reversed vector v */
-  fftw_execute_dft_r2c(h->r2c_plan, circ, ocirc);
-
-  /* Dot-multiply with pre-computed FFT of toeplitz circulant */
-  for (i = 0; i < Ny*(Nx/2 + 1); ++i)
-    ocirc[i] = ocirc[i] * h->circ_freq[i];
-
-  /* Compute the reverse transform to obtain result */
-  fftw_execute_dft_c2r(h->c2r_plan, ocirc, circ);
+  compute_convolution(h, circ, ocirc);
 
   /* Cleanup and return */
   if (h->col_ind == NULL) {
@@ -282,26 +267,9 @@ static R_INLINE void hbhankelize_fft(double *F,
   fftw_execute_dft_c2r(h->c2r_plan, cU, iU);
 
   /* Form the result */
-  if (h->weights == NULL) {
-    for (j = 0, wy = 1, dwy = 1; j < Ny; ++j, wy += dwy) {
-      if (j == Ly - 1)
-        dwy--;
-      if (j == Ky - 1) /* Do not join two ifs! */
-        dwy--;
-
-      for (i = 0, wx = 1, dwx = 1; i < Nx; ++i, wx += dwx) {
-        if (i == Lx - 1)
-          dwx--;
-        if (i == Kx - 1)
-          dwx--;
-        F[i+j*Nx] = iU[i+j*Nx] / wx / wy / Nx / Ny;
-      }
-    }
-  } else {
-    for (i = 0; i < Nx * Ny; ++i) {
-      if (h->weights[i]) {
-        F[i] = iU[i] / h->weights[i] / Nx / Ny;
-      }
+  for (i = 0; i < Nx * Ny; ++i) {
+    if (h->weights[i]) {
+      F[i] = iU[i] / h->weights[i] / Nx / Ny;
     }
   }
 
@@ -380,7 +348,7 @@ static void free_area2d( area2d_indices *area ) {
 
 static int *alloc_weights( SEXP weights ) {
   if (weights == R_NilValue) {
-    return NULL;
+    error("the weights should be precomputed.");
   }
   int *wcopy = Calloc(length(weights), int), *wsource = INTEGER(weights);
   memcpy(wcopy, wsource, sizeof(int) * length(weights));
