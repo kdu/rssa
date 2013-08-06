@@ -50,6 +50,7 @@ ssa <- function(x,
                 neig = NULL,
                 mask = NULL,
                 umask = NULL,
+                loopback = c(FALSE, FALSE),
                 ...,
                 kind = c("1d-ssa", "2d-ssa", "shaped2d-ssa", "toeplitz-ssa"),
                 svd.method = c("auto", "nutrlan", "propack", "svd", "eigen"),
@@ -80,18 +81,11 @@ ssa <- function(x,
 
     N <- dim(x);
 
-    if (is.null(mask)) {
-      mask <- !is.na(x);
-    } else {
-      mask <- mask & !is.na(x);
-    }
-
+    mask <- if (is.null(mask)) !is.na(x) else mask & !is.na(x);
     umask <- .fiface.eval(substitute(umask),
                           envir = parent.frame(),
                           circle = circle.mask)
-    if (is.null(umask)) {
-      umask <- matrix(TRUE, L[1], L[2]);
-    } else {
+    if (!is.null(umask)) {
       L <- dim(umask);
     }
 
@@ -101,22 +95,15 @@ ssa <- function(x,
     if (identical(svd.method, "auto"))
       svd.method <- "nutrlan"
 
-    vmask <- factor.mask(mask, umask)
-    if (all(umask)) {
-      umask <- NULL;
-    }
-    if (all(vmask)) {
-      vmask <- NULL;
-    }
-    if (!(is.null(umask) & is.null(vmask))) {
-      weights <- field.weights(umask, vmask)
+    tmp <-  masks.weights.2d.ssa(N, L, mask, umask, loopback);
+    vmask <- tmp$vmask;
+    weights <- tmp$weights;
+    if (!is.null(weights)) {
       ommited <- sum(mask & (weights == 0))
       if (ommited > 0) {
         warning(sprintf("Some field elements haven't been covered by shaped window. %d elements will be ommited", ommited))
       }
-    } else {
-      weights <- NULL;
-    }
+    } 
   } else if (identical(kind, "shaped2d-ssa")) {
     # Coerce input to matrix if necessary
     if (!is.matrix(x))

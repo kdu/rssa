@@ -3,7 +3,6 @@ library(Rssa);
 source(system.file("extdata", "common.test.methods.R", package = "Rssa"));
 context("2dSSA");
 
-
 test_that("simple 2d-ssa test", {
   F0 <- matrix(c(0, 1, 0, 1, 1, 1), 2,3);
   F <- rbind(cbind(F0,F0), cbind(F0,F0));
@@ -77,7 +76,6 @@ test_that("Shaped 2D-SSA test", {
   expect_equal(ematmul(h2, vtest), hbhmatmul(h3, vtest), 
                label = "matmul, SH-SSA <-> 2D-SH-SSA", tolerance=1e-5);
 });
-
 
 
 

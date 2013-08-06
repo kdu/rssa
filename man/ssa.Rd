@@ -13,6 +13,7 @@ ssa(x,
     neig = NULL,
     mask = NULL,
     umask = NULL,
+    loopback = c(FALSE, FALSE),
     \dots,
     kind = c("1d-ssa", "2d-ssa", "shaped2d-ssa", "toeplitz-ssa"),
     svd.method = c("auto", "nutrlan", "propack", "svd", "eigen"),
@@ -30,6 +31,8 @@ ssa(x,
   \item{mask}{for shaped 2d SSA case only. Logical matrix with same dimension as
     \code{x}. Specifies form of decomposed field. If 'NULL', then all non-NA elements will be used}
   \item{umask}{for shaped 2d SSA case only. Logical matrix which specifies window form.
+    See `Details' for move information about the window shape selection}
+  \item{loopback}{for shaped 2d SSA case only. Logical vector of length 2 for cylinder/torus topology.
     See `Details' for move information about the window shape selection}
   \item{\dots}{further arguments passed to \code{\link[Rssa:decompose.ssa]{decompose}} }
   \item{kind}{SSA method. This includes ordinary 1d SSA, 2d SSA and
@@ -170,4 +173,12 @@ s <- ssa(mx, kind = "shaped2d-ssa", umask = circle(I(circle)), neig = 10)
 r <- reconstruct(s, groups = list(1, 2:5, 6))
 # Plot components, original field and residuals
 plot(r)
+
+# A simple test for shaped cylindrical 2dSSA
+mx2 <- outer(1:51, 1:50, function(i, j) sin(2*pi * i/17) )
+plot(ssa(mx2, kind="2d-ssa", neig=10, loopback=c(TRUE,FALSE), 
+         umask = circle(I(5))))
+plot(ssa(mx2[-51,], kind="2d-ssa", neig=10, loopback=c(TRUE,FALSE), 
+         umask = circle(I(5))))
+
 }

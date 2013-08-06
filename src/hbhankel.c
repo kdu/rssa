@@ -190,7 +190,7 @@ static void hbhankel_tmatmul(double* out,
   if (h->row_ind == NULL) {
     for (j = 0; j < Ly; ++j)
       for (i = 0; i < Lx; ++i)
-        circ[(i + Kx - 1) + (j + Ky - 1)*Nx] = v[Lx*Ly - i - j*Lx - 1];
+        circ[Ny*Nx - 1 - (i + j*Nx)] = v[i + Lx*j];
   } else {
     for (i = 0; i < h->row_ind->num; ++i) { 
       circ[Nx*Ny - 1 - h->row_ind->ind[i]] = v[i];
@@ -200,13 +200,14 @@ static void hbhankel_tmatmul(double* out,
   compute_convolution(h, circ, ocirc);
 
   /* Cleanup and return */
+  R_len_t Px = Nx - Kx, Py = Ny - Ky;
   if (h->col_ind == NULL) {
     for (j = 0; j < Ky; ++j)
       for (i = 0; i < Kx; ++i)
-        out[i + j * Kx] = circ[(i + Lx - 1) + (j + Ly - 1)*Nx] / (Nx * Ny);
+        out[i + j * Kx] = circ[i + Px + (j + Py)*Nx] / (Nx * Ny);
   } else {
     for (i = 0; i < h->col_ind->num; ++i) {
-      out[i] =  circ[h->col_ind->ind[i] + (Lx-1) + (Ly-1)*Nx] / (Nx * Ny);
+      out[i] =  circ[h->col_ind->ind[i] + Px + Py*Nx] / (Nx * Ny);
     }
   }
 
@@ -513,7 +514,6 @@ SEXP hbhmatmul(SEXP hmat, SEXP v, SEXP transposed) {
 
     /* Allocate output buffer */
     PROTECT(Y = allocVector(REALSXP, L));
-
     /* Calculate the product */
     if (LOGICAL(transposed)[0])
       hbhankel_tmatmul(REAL(Y), REAL(v), h);

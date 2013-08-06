@@ -51,6 +51,31 @@ thbhmatmul.old <- function(C, v) {
   Re((mult/(prod(dim(C$Cblock))))[C$Lx:(C$Lx+C$Kx-1),C$Ly:(C$Ly+C$Ky-1)])
 }
 
+masks.weights.2d.ssa <- function(N, L, mask, umask, loopback = c(FALSE, FALSE)) {
+  vmask <- weights <- NULL;  
+  if ((!is.null(mask)) || (!is.null(umask)) || any(loopback)) {
+    if (is.null(mask)) {
+      mask <- matrix(TRUE, N[1], N[2]);
+    }
+    if (is.null(umask)) {
+      umask <- matrix(TRUE, L[1], L[2]);
+    }
+    # Construct a temporary hbhmat
+    K = c(if(loopback[1]) N[1] else { N[1] - L[1] + 1 }, 
+          if(loopback[2]) N[2] else { N[2] - L[2] + 1 });
+    tvmask <- if (any(loopback)) matrix(TRUE, K[1], K[2]) else NULL;
+    storage.mode(mask) <- "double";
+    h <- new.hbhmat(mask, L, NULL, tvmask, matrix(as.integer(1), N[1], N[2]));
+    # Compute masks and weights 
+    vmask <- abs(hbhmatmul(h, as.numeric(umask), TRUE) - sum(umask)) < 0.5;
+    dim(vmask) <- K;
+    weights <- .Call("hbhankelize_one_fft", as.numeric(umask), 
+                                            as.numeric(vmask), h)
+    weights[] <- as.integer(round(weights))
+  }
+  list(vmask = vmask, weights = weights)
+}
+
 new.hbhmat <- function(F, L = (N + 1) %/% 2,
                        umask = NULL, vmask = NULL, weights = NULL) {
   N <- dim(F)
